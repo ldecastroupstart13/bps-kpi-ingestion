@@ -1,1 +1,0 @@
-# bps-kpi-ingestion
