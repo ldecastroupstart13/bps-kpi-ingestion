@@ -16,38 +16,59 @@ ENDPOINTS = [
 def main():
 
     if not TOKEN:
-        raise ValueError("BPS_KPI_TOKEN não definido.")
+        raise ValueError("BPS_KPI_TOKEN environment variable is not defined.")
 
     if not BUCKET_NAME:
-        raise ValueError("BUCKET_NAME não definido.")
+        raise ValueError("BUCKET_NAME environment variable is not defined.")
 
     headers = {
         "Accept": "application/json",
         "x-kpi-token": TOKEN
     }
 
-    dfs = []
+    dataframes = []
 
-    for ep in ENDPOINTS:
-        print(f"Consumindo endpoint: {ep}")
+    for endpoint in ENDPOINTS:
+        print(f"Calling endpoint: {endpoint}")
 
-        response = requests.get(BASE_URL + ep, headers=headers)
+        response = requests.get(BASE_URL + endpoint, headers=headers)
         response.raise_for_status()
 
-        data = response.json()["data"]
+        json_response = response.json()
+        data = json_response.get("data")
 
-        df = (
-            pd.DataFrame(list(data.items()), columns=["year_month", "value"])
-            .assign(
-                year_month=lambda x: pd.to_datetime(x["year_month"]),
-                kpi_name=ep.split("/")[-1],
-                ingestion_timestamp=datetime.utcnow()
+        if not data:
+            print(f"No data returned for {endpoint}")
+            continue
+
+        # 🔥 FIX: handle both list and dict structures safely
+        if isinstance(data, list):
+            df = pd.DataFrame(data)
+
+        elif isinstance(data, dict):
+            df = pd.DataFrame(
+                list(data.items()),
+                columns=["year_month", "value"]
             )
-        )
 
-        dfs.append(df)
+        else:
+            raise ValueError(
+                f"Unexpected API format for {endpoint}: {type(data)}"
+            )
 
-    final_df = pd.concat(dfs)
+        # Normalize year_month if present
+        if "year_month" in df.columns:
+            df["year_month"] = pd.to_datetime(df["year_month"])
+
+        df["kpi_name"] = endpoint.split("/")[-1]
+        df["ingestion_timestamp"] = datetime.utcnow()
+
+        dataframes.append(df)
+
+    if not dataframes:
+        raise ValueError("No dataframes were created from API responses.")
+
+    final_df = pd.concat(dataframes, ignore_index=True)
 
     now = datetime.utcnow()
     year = now.strftime("%Y")
@@ -59,17 +80,17 @@ def main():
 
     final_df.to_csv(local_path, index=False)
 
-    # Estrutura particionada
+    # Partitioned GCS structure
     gcs_path = f"bps_kpis/year={year}/month={month}/{filename}"
 
-    print(f"Fazendo upload para gs://{BUCKET_NAME}/{gcs_path}")
+    print(f"Uploading to gs://{BUCKET_NAME}/{gcs_path}")
 
     client = storage.Client()
     bucket = client.bucket(BUCKET_NAME)
     blob = bucket.blob(gcs_path)
     blob.upload_from_filename(local_path)
 
-    print("Upload concluído com sucesso.")
+    print("Upload completed successfully.")
 
 if __name__ == "__main__":
     main()
