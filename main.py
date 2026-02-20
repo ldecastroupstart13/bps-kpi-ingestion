@@ -83,7 +83,7 @@ def main():
     final_df.to_csv(local_path, index=False)
 
     # Partitioned GCS structure
-    gcs_path = f"bps_kpis/year={year}/month={month}/{filename}"
+    gcs_path = f"bps_kpis/{filename}"
 
     print(f"Uploading to gs://{BUCKET_NAME}/{gcs_path}")
 
