@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 from google.cloud import storage
 
+
 BASE_URL = "https://api-bps.gladneycenter.org"
 TOKEN = os.getenv("BPS_KPI_TOKEN")
 BUCKET_NAME = os.getenv("BUCKET_NAME")
@@ -13,6 +14,7 @@ ENDPOINTS = [
     "/api/kpis/em-background-form-submissions"
 ]
 
+print("=== BUILD VERSION 3.0 ===")
 def main():
 
     if not TOKEN:
